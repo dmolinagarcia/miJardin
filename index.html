@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jardín de Colmenar</title>
+<meta name="description" content="Plano, fichas y calendario de las plantas del jardín.">
+<meta name="theme-color" content="#eef0eb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111714" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icono.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icono-180.png">
+<link rel="preload" href="assets/fuentes/atkinson-hyperlegible-next-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/estilo.css">
+<script type="module" src="assets/js/app.js"></script>
+</head>
+<body>
+<a class="saltar" href="#principal">Saltar al contenido</a>
+<header class="app-cab">
+  <div class="app-cab-dentro">
+    <a class="marca-app" href="#/temporada">
+      <svg class="marca-app-icono" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <path d="M3 4h15v12h11v12H3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+        <circle cx="8" cy="8.5" r="2" fill="#b0243b"/><circle cx="13" cy="8.5" r="2" fill="#5b4687"/>
+        <circle cx="25" cy="22" r="2" fill="#2f7357"/>
+      </svg>
+      <span class="marca-app-nombre" id="nombre-jardin">Jardín</span>
+    </a>
+    <nav class="nav-arriba" id="nav-arriba" aria-label="Secciones"></nav>
+    <a class="boton-icono enlace-ajustes" id="enlace-ajustes" href="#/ajustes" aria-label="Ajustes" title="Ajustes"></a>
+  </div>
+</header>
+<main id="principal" tabindex="-1">
+  <div class="contenido" id="app">
+    <p class="cargando" role="status">Cargando el jardín…</p>
+  </div>
+</main>
+<nav class="pestanas" id="pestanas" aria-label="Secciones"></nav>
+<div class="avisos" id="avisos" aria-live="polite"></div>
+<dialog id="hoja" class="hoja"></dialog>
+<dialog id="confirmar" class="hoja confirmar" aria-label="Confirmación"></dialog>
+<noscript><p class="contenido">Esta web necesita JavaScript para mostrar el jardín.</p></noscript>
+</body>
+</html>

@@ -1,0 +1,75 @@
+{
+  "nombre": "Jardín de Colmenar",
+  "fichas": ["granado", "higuera", "hortensia-roble"],
+  "plano": {
+    "contorno": [
+      [0, 0],
+      [11.8, 0],
+      [11.8, 7],
+      [22.1, 7],
+      [22.1, 9.6],
+      [0, 9.6]
+    ],
+    "zonas": [
+      { "nombre": "Fondo", "x": 16.9, "y": 8.3 }
+    ]
+  },
+  "plantas": [
+    {
+      "id": "g1",
+      "etiqueta": "G1",
+      "ficha": "granado",
+      "x": 3,
+      "y": 0.9,
+      "notas": "En maceta grande, de unos 70 cm. Plantado en abril de 2026."
+    },
+    {
+      "id": "hi1",
+      "etiqueta": "Hi1",
+      "ficha": "higuera",
+      "x": 4.5,
+      "y": 0.9,
+      "notas": "En maceta grande, como los granados."
+    },
+    {
+      "id": "g2",
+      "etiqueta": "G2",
+      "ficha": "granado",
+      "x": 6.2,
+      "y": 0.9,
+      "notas": "En maceta grande, de unos 70 cm. Plantado en abril de 2026."
+    },
+    {
+      "id": "hi2",
+      "etiqueta": "Hi2",
+      "ficha": "higuera",
+      "x": 7.8,
+      "y": 0.9,
+      "notas": "En maceta grande, como los granados."
+    },
+    {
+      "id": "g3",
+      "etiqueta": "G3",
+      "ficha": "granado",
+      "x": 9.5,
+      "y": 0.9,
+      "notas": "En maceta grande, de unos 70 cm. Plantado en abril de 2026."
+    },
+    {
+      "id": "h1",
+      "etiqueta": "H1",
+      "ficha": "hortensia-roble",
+      "x": 21.1,
+      "y": 7.9,
+      "notas": ""
+    },
+    {
+      "id": "h2",
+      "etiqueta": "H2",
+      "ficha": "hortensia-roble",
+      "x": 21.1,
+      "y": 9,
+      "notas": ""
+    }
+  ]
+}
