@@ -6,7 +6,6 @@ Web multiusuario del jardín (plano, fichas y calendario), instalable como app. 
 
 - **Todos los cambios van a `main`**: commit y push directamente a `main`, sin ramas ni pull requests, salvo que se pida otra cosa. Lo que llega a `main` se publica solo en la devbox (cron cada 10 min con `despliegue/actualizar.sh`).
 - **Versiones**: empiezan en 0.0.1 y cada commit sube el tercer dígito automáticamente (`despliegue/version.sh` cuenta los commits desde el último cambio del archivo `VERSION`). **El primer y el segundo dígito solo se cambian cuando el usuario lo pide**, editando `VERSION` (p. ej. a `0.1.0`). No toques `VERSION` por tu cuenta, ni pongas `version` en `package.json`.
-- **Etiquetas**: después de cada commit en `main`, crea la etiqueta anotada con su versión y súbela junto al commit: `git tag -a v$(despliegue/version.sh) -m "v$(despliegue/version.sh)" && git push origin main --follow-tags`.
 - Evita los commits de fusión en `main` (cada commit cuenta como versión): integra con fast-forward o rebase.
 
 ## Convenciones
