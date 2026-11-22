@@ -1,5 +1,6 @@
 .git
+**/.env
 datos
-.env
+despliegue
 pruebas
 node_modules

@@ -16,5 +16,12 @@ USER node
 VOLUME ["/datos"]
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8080/salud || exit 1
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD wget -qO- http://127.0.0.1:8080/salud || exit 1
+
+# Versión y commit: los pone despliegue/actualizar.sh al construir.
+ARG VERSION=0.0.0-dev
+ARG COMMIT=desconocido
+ENV JARDIN_VERSION=$VERSION \
+    JARDIN_COMMIT=$COMMIT
+
 CMD ["node", "--disable-warning=ExperimentalWarning", "servidor/index.js"]

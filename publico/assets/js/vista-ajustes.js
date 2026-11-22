@@ -90,7 +90,16 @@ export function vistaAjustes(app, pago = null) {
         <button class="boton-texto" type="button" data-accion="recargar">Volver a cargar los datos</button>
       </div>
     </section>
+    <p class="nota version-app" id="version-app"></p>
   </section>`;
+
+  fetch('version.json', { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((v) => {
+      const el = $('#version-app', app);
+      if (el) el.textContent = `Versión ${v.version}${v.commit && v.commit !== 'desconocido' ? ` · ${v.commit}` : ''}`;
+    })
+    .catch(() => {});
 
   const actualizarInstalar = () => {
     const panel = $('#panel-instalar', app);

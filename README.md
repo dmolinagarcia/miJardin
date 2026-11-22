@@ -42,15 +42,9 @@ Abre <http://IP-DEL-DEVBOX:8080> y entra con el administrador del `.env`. La pri
 
 Después puedes quitar `ADMIN_USUARIO` y `ADMIN_CLAVE` del `.env`: solo se usan si no hay ningún usuario.
 
-### Con Docker
+### Con Docker, en la devbox
 
-```sh
-cp .env.ejemplo .env
-mkdir -p datos && sudo chown -R 1000:1000 datos
-docker compose up -d --build
-```
-
-La base de datos queda en `./datos/jardin.db`. El puerto solo escucha en `127.0.0.1`: se entra a través de un proxy con https. La guía paso a paso para un devbox con Caddy está en [`despliegue/GUIA-DEVBOX.md`](despliegue/GUIA-DEVBOX.md).
+Todo lo del despliegue está en `despliegue/`: `compose.yaml` (sin puertos publicados, detrás de `devenv-caddy`), `actualizar.sh` (publicación con copia de seguridad y vuelta atrás), `programar.sh` (cron) y `copia.sh`. El paso a paso y los comandos habituales están en [`despliegue/GUIA-DEVBOX.md`](despliegue/GUIA-DEVBOX.md).
 
 ### Con systemd
 
@@ -60,7 +54,7 @@ En `despliegue/jardin.service` hay un servicio listo para copiar en `/etc/system
 
 Los móviles solo instalan la web como app si se sirve por **https** (o en `localhost`). Opciones:
 
-- **Caddy** delante del servidor: `despliegue/Caddyfile` tiene la configuración. Con un dominio público, Caddy saca el certificado solo. Arranca el jardín con `CONFIAR_PROXY=si`.
+- **Caddy** delante del servidor: `despliegue/Caddyfile.ejemplo` tiene el sitio. Con un dominio público, Caddy saca el certificado solo. Arranca el jardín con `CONFIAR_PROXY=si`.
 - **Tailscale**: `tailscale serve --bg 8080` publica el jardín con https en tu red Tailscale (`https://devbox.tu-red.ts.net`). También con `CONFIAR_PROXY=si`.
 
 Luego, en el móvil: en Android/Chrome, *Ajustes → La app en el móvil → Instalar la app* (o el menú del navegador). En iPhone, en Safari, *Compartir → Añadir a la pantalla de inicio*. Instalada, se abre a pantalla completa y deja consultar el jardín sin conexión (la última copia descargada).
@@ -122,7 +116,7 @@ npm run cli -- exportar-fichas copia-fichas          # vuelca el catálogo a .md
 npm run cli -- importar-jardin ana mi-jardin.json    # sustituye el jardín de un usuario
 ```
 
-Con Docker: `docker compose exec jardin node servidor/cli.js usuarios`.
+Con Docker, desde `despliegue/`: `docker compose exec mijardin node servidor/cli.js usuarios`.
 
 `importar-fichas` sirve para mantener el catálogo también como archivos: edita los `.md` y vuelve a importarlos; solo crea versión nueva de las fichas que han cambiado.
 
@@ -132,7 +126,7 @@ Todo está en `datos/jardin.db`. Para copiarla en caliente:
 
 ```sh
 npm run cli -- copia                                          # sin Docker
-docker compose exec jardin node servidor/cli.js copia         # con Docker
+./copia.sh                                                    # con Docker, desde despliegue/
 ```
 
 La copia queda en `datos/copias/`.

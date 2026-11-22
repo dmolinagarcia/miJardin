@@ -154,3 +154,9 @@ test('cambio de contraseña cierra las otras sesiones', async () => {
   assert.equal((await a('GET', '/api/yo')).status, 200);
   assert.equal((await b('GET', '/api/yo')).status, 401);
 });
+
+test('salud y versión', async () => {
+  assert.equal(await (await fetch(`${base}/salud`)).text(), 'ok');
+  const v = await (await fetch(`${base}/version.json`)).json();
+  assert.match(v.version, /^\d+\.\d+\.\d+/);
+});

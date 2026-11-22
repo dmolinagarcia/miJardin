@@ -1,0 +1,35 @@
+# Despliegue en la devbox, detrás de devenv-caddy. No se usa a mano: ./actualizar.sh
+#
+# Sin puertos publicados: solo Caddy llega al contenedor, por la red Docker compartida
+# (CADDY_NETWORK en .env). En Caddy: reverse_proxy mijardin:8080
+name: mijardin
+
+services:
+  mijardin:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${JARDIN_VERSION:-0.0.0-dev}
+        COMMIT: ${JARDIN_COMMIT:-desconocido}
+    image: mijardin:latest
+    container_name: mijardin
+    restart: unless-stopped
+    # Escribe en ./datos como el usuario que despliega (actualizar.sh pone su uid y gid).
+    user: "${JARDIN_UID:-1000}:${JARDIN_GID:-1000}"
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      PUERTO: "8080"
+      DATOS: /datos
+      CONFIAR_PROXY: "si"
+    volumes:
+      - ./datos:/datos
+    networks:
+      - caddy
+
+networks:
+  caddy:
+    name: ${CADDY_NETWORK:?Falta CADDY_NETWORK en despliegue/.env}
+    external: true

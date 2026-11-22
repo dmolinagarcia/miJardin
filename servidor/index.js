@@ -2,12 +2,18 @@
 // Sin dependencias: solo Node 22.13 o posterior.
 
 import { createServer } from 'node:http';
-import { createReadStream, statSync } from 'node:fs';
+import { createReadStream, statSync, readFileSync } from 'node:fs';
 import { join, normalize, extname, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { leerConfig, abrirBase, prepararDatos } from './arranque.js';
 import { manejarApi } from './api.js';
 import { limpiarSesiones } from './auth.js';
+
+// Versión: la pone despliegue/actualizar.sh al construir la imagen (mayor.menor.nº de commits).
+export const VERSION = {
+  version: process.env.JARDIN_VERSION || `${JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version}-dev`,
+  commit: process.env.JARDIN_COMMIT || 'desconocido',
+};
 
 const TIPOS = {
   '.html': 'text/html; charset=utf-8',
@@ -97,6 +103,8 @@ export async function crearServidor(cfg = leerConfig(), { log = console.log } = 
       manejarApi(req, res, { db, cfg });
     } else if (req.url === '/salud') {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+    } else if (req.url === '/version.json') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(VERSION));
     } else {
       servirArchivo(req, res, cfg.publico);
     }

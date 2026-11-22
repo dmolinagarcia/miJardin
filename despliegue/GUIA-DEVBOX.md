@@ -1,156 +1,166 @@
-# Desplegar en el devbox (Debian/Ubuntu, Docker, detrás de Caddy)
+# Despliegue del jardín en la devbox
 
-En los ejemplos, el dominio es `jardin.tudominio.es` y la carpeta `/opt/jardin`. Cámbialos por los tuyos.
+Web: **https://jardin.tudominio.es** (cambia el dominio en los pasos 3 y 4). Mismo montaje que la escape room: clon de solo lectura, contenedor sin puertos publicados detrás de `devenv-caddy`, y cron que publica lo que llega a `main`.
 
-## 0. Comprobaciones
+## Resumen
 
-```sh
-docker --version && docker compose version   # Compose v2.24 o posterior
-caddy version                                 # o: docker exec <contenedor-caddy> caddy version
+```
+desarrollo ──git push──► GitHub (main) ──cron cada 10 min──► actualizar.sh ──► contenedor mijardin ──► devenv-caddy (HTTPS) ──► Internet
 ```
 
-- En tu DNS, un registro `A` (y `AAAA` si usas IPv6) de `jardin.tudominio.es` a la IP pública del devbox. Si ya sirves otros sitios con Caddy, los puertos 80 y 443 ya están abiertos.
-- Comprueba que el puerto 8080 está libre: `ss -ltnp | grep :8080`. Si no lo está, en el paso 3 pon otro en `PUERTO`.
+| Qué | Dónde / valor |
+|---|---|
+| Servidor | `devbox`, usuario `ubuntu` (en el grupo `docker`) |
+| Clon del repo (solo para desplegar) | `/srv/mijardin` |
+| Carpeta de despliegue | `/srv/mijardin/despliegue` |
+| Repositorio | `dmolinagarcia/miJardin`, rama `main` (`JARDIN_RAMA` en `.env`), por deploy key de solo lectura (`~/.ssh/mijardin_deploy`, alias SSH `github-mijardin`) |
+| Contenedor | `mijardin` (imagen `mijardin:latest`, Node 22 alpine, puerto 8080 interno, sin dependencias) |
+| Puertos publicados | ninguno: solo Caddy llega al contenedor, por la red Docker compartida |
+| Configuración | `despliegue/.env` (no está en git; plantilla en `.env.ejemplo`). La clave es `CADDY_NETWORK`, la red Docker de `devenv-caddy` |
+| Datos | `despliegue/datos/`, montada como `/datos`: `jardin.db` (SQLite) y `copias/` |
+| Proxy HTTPS | contenedor `devenv-caddy` |
+| Sitio en Caddy | `/srv/dev/caddy/sites/mijardin.caddy`, copiado de `despliegue/Caddyfile.ejemplo` |
+| Actualización automática | cron del usuario `ubuntu`, instalado con `despliegue/programar.sh`: actualizar cada 10 min y copia diaria a las 3:17. Registro en `~/mijardin-actualizar.log` |
+| Administración | dentro de la web, pestaña *Admin* (cuentas con rol admin). En terminal: `servidor/cli.js` |
+| Salud y versión | `/salud` (healthcheck de Docker) y `/version.json`. La versión es `2.0.<nº de commits>` |
 
-## 1. Bajar el código
+## Puesta en marcha (una vez)
 
-```sh
-sudo mkdir -p /opt/jardin && sudo chown "$USER": /opt/jardin
-git clone -b ccr-c877e33c-96vkme https://github.com/dmolinagarcia/miJardin.git /opt/jardin
-cd /opt/jardin
+### 1. Deploy key y clon
+
+```bash
+ssh-keygen -t ed25519 -N '' -C 'devbox mijardin' -f ~/.ssh/mijardin_deploy
+cat >> ~/.ssh/config <<'EOF'
+
+Host github-mijardin
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/mijardin_deploy
+  IdentitiesOnly yes
+EOF
+cat ~/.ssh/mijardin_deploy.pub
 ```
 
-El repositorio solo hace falta para bajar el código: la web no usa GitHub para nada. Si es privado, git te pedirá usuario y un token de GitHub como contraseña. Si fusionas la rama en `main`, quita `-b …`.
+En GitHub, en *miJardin → Settings → Deploy keys → Add deploy key*, pega la clave pública **sin** marcar *Allow write access*.
 
-## 2. Carpeta de datos
-
-El contenedor escribe como el usuario 1000:
-
-```sh
-mkdir -p datos && sudo chown -R 1000:1000 datos
+```bash
+ssh -T github-mijardin          # «Hi dmolinagarcia/miJardin! You've successfully authenticated…»
+sudo mkdir -p /srv/mijardin && sudo chown ubuntu: /srv/mijardin
+git clone github-mijardin:dmolinagarcia/miJardin.git /srv/mijardin
+git -C /srv/mijardin ls-remote origin main   # tiene que responder
 ```
 
-## 3. Configuración
+### 2. Configuración
 
-```sh
+```bash
+cd /srv/mijardin/despliegue
 cp .env.ejemplo .env && chmod 600 .env
-openssl rand -base64 18          # contraseña para el administrador
+docker inspect devenv-caddy -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'   # → CADDY_NETWORK
+openssl rand -base64 18                                                                    # → ADMIN_CLAVE
 nano .env
 ```
 
-Como mínimo:
+Rellena `CADDY_NETWORK`, `URL_PUBLICA`, `ADMIN_USUARIO`, `ADMIN_CLAVE` y, si quieres, `LIMITE_PLANTAS_GRATIS`. Stripe se deja vacío por ahora.
 
-```ini
-PUERTO=8080
-ADMIN_USUARIO=tu-usuario
-ADMIN_CLAVE=la-que-ha-salido-arriba
-REGISTRO_ABIERTO=si
-LIMITE_PLANTAS_GRATIS=10
-URL_PUBLICA=https://jardin.tudominio.es
-CONFIAR_PROXY=si
-COOKIE_SEGURA=si
+### 3. Primer despliegue
+
+```bash
+./actualizar.sh --forzar
+docker compose ps                        # mijardin … (healthy)
+docker compose logs --tail 20 mijardin   # «Catálogo inicial: 3 fichas…», «Creado el administrador…»
 ```
 
-`CONFIAR_PROXY=si` es seguro porque el puerto solo escucha en 127.0.0.1 y solo entra Caddy. Deja Stripe para el paso 7.
+### 4. Caddy
 
-## 4. Arrancar
-
-```sh
-docker compose up -d --build
-docker compose logs -f           # Ctrl+C para salir
-curl -s http://127.0.0.1:8080/salud    # → ok
+```bash
+cp Caddyfile.ejemplo /srv/dev/caddy/sites/mijardin.caddy
+nano /srv/dev/caddy/sites/mijardin.caddy   # el dominio
+docker exec devenv-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 
-En los registros debe salir «Catálogo inicial: 3 fichas importadas» y «Creado el administrador».
+El DNS de ese dominio tiene que apuntar a la devbox (registro `A`/`AAAA`, o `CNAME` al nombre de la devbox).
 
-## 5. Caddy
+### 5. Primera entrada
 
-**Caddy instalado en el sistema.** Añade a `/etc/caddy/Caddyfile`:
+1. `https://jardin.tudominio.es` → entra con el administrador → *Ajustes → Cambiar la contraseña*.
+2. Quita `ADMIN_USUARIO` y `ADMIN_CLAVE` de `.env` y aplica: `./actualizar.sh --forzar`.
+3. Comprueba `https://jardin.tudominio.es/version.json`.
 
-```caddy
-jardin.tudominio.es {
-	encode zstd gzip
-	reverse_proxy 127.0.0.1:8080
-}
+### 6. Tareas programadas
+
+```bash
+./programar.sh          # cada 10 min + copia diaria
+crontab -l | grep mijardin
 ```
 
-```sh
-sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+### 7. Stripe (cuando toque)
+
+1. En modo de prueba: producto con precio **recurrente mensual** (`price_…`), clave secreta `sk_test_…`, y guarda la configuración del *Portal de clientes*.
+2. Webhook a `https://jardin.tudominio.es/api/stripe/aviso` con `checkout.session.completed` y `customer.subscription.created/updated/deleted` (`whsec_…`).
+3. Rellena `STRIPE_CLAVE_SECRETA`, `STRIPE_PRECIO` y `STRIPE_SECRETO_AVISOS` en `.env` y aplica con `./actualizar.sh --forzar`.
+4. Prueba con un usuario nuevo y la tarjeta `4242 4242 4242 4242`.
+
+## Cómo se publica un cambio
+
+1. Se fusiona o se hace push a `main` en GitHub.
+2. Como mucho 10 minutos después, el cron lanza `despliegue/actualizar.sh`, que:
+   1. hace una copia de la base de datos en `datos/copias/antes-<commit>-<fecha>.db`;
+   2. hace `git fetch` y un `merge --ff-only` de `main`;
+   3. construye la imagen pasándole la versión y el commit, y arranca el contenedor (las migraciones de la base de datos se aplican solas al iniciar);
+   4. espera a que el contenedor esté `healthy`, hasta 120 s.
+3. Si la imagen no se construye, el código vuelve al commit anterior y la web sigue como estaba.
+4. Si la versión nueva no arranca, vuelve al commit anterior y restaura la base de datos desde la copia. Lo que se haya guardado durante el intento se pierde: son segundos.
+5. En los dos casos, el commit queda marcado como fallido (`datos/.commit-fallido`) y el cron no lo reintenta hasta que llegue otro commit. Con `--forzar` se reintenta.
+
+> El clon de `/srv/mijardin` **no se toca a mano**. Si tiene cambios locales, `actualizar.sh` se niega a actualizar. Si alguien hace `push --force` a `main`, también se para y avisa.
+
+## Comandos habituales (en `/srv/mijardin/despliegue`)
+
+```bash
+./actualizar.sh                      # publicar ya, sin esperar al cron
+./actualizar.sh --forzar             # reconstruir y reiniciar aunque no haya commits nuevos (p. ej. tras cambiar .env)
+docker compose ps                    # debe salir healthy
+docker compose logs --tail 100 mijardin
+tail -n 50 ~/mijardin-actualizar.log
+crontab -l | grep mijardin
+./programar.sh 5                     # actualizar cada 5 minutos
+./programar.sh --quitar
+./copia.sh                           # copia de seguridad a mano (y borra las de más de 30 días)
+docker exec devenv-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+
+docker compose exec mijardin node servidor/cli.js usuarios
+docker compose exec mijardin node servidor/cli.js crear-usuario pepe --admin
+docker compose exec -e CLAVE='nueva-clave' mijardin node servidor/cli.js clave ana
 ```
 
-**Caddy en un contenedor.** Desde dentro de su contenedor, `127.0.0.1` no es el devbox. Conecta los dos contenedores a la misma red:
+**Usa siempre `actualizar.sh`, no `docker compose up -d --build`.** El script calcula la versión, pone el usuario correcto para escribir en `datos/` y hace la copia de seguridad. Construyendo a mano, la web sale como `0.0.0-dev`.
 
-1. Busca la red de Caddy: `docker inspect <contenedor-caddy> -f '{{json .NetworkSettings.Networks}}'`.
-2. En `compose.yaml`, quita el bloque `ports:` y descomenta `networks:` (las dos partes), con el nombre de esa red.
-3. `docker compose up -d`.
-4. En el Caddyfile usa `reverse_proxy jardin:8080` y recarga: `docker exec <contenedor-caddy> caddy reload --config /etc/caddy/Caddyfile`.
+## Restaurar una copia a mano
 
-Caddy saca el certificado solo la primera vez que alguien entra. Si falla, revisa sus registros (`journalctl -u caddy -f` o `docker logs -f <contenedor-caddy>`).
-
-## 6. Primera entrada
-
-1. Abre `https://jardin.tudominio.es` y entra con el administrador.
-2. *Ajustes → Cambiar la contraseña*.
-3. Quita `ADMIN_USUARIO` y `ADMIN_CLAVE` del `.env` (solo se usan si no hay usuarios) y aplica: `docker compose up -d`.
-4. En el móvil: Chrome → menú → *Instalar app*; iPhone → Safari → *Compartir → Añadir a la pantalla de inicio*.
-
-## 7. Stripe (pagos)
-
-Primero en **modo de prueba**:
-
-1. <https://dashboard.stripe.com> → activa *Modo de prueba*.
-2. *Catálogo de productos → Añadir producto*: «Jardín sin límite», precio **recurrente mensual**. Copia el `price_…`.
-3. *Desarrolladores → Claves de API*: copia la clave secreta `sk_test_…`.
-4. *Configuración → Billing → Portal de clientes*: guarda la configuración (activa la cancelación y el cambio de método de pago).
-5. *Desarrolladores → Webhooks → Añadir endpoint*:
-   - URL: `https://jardin.tudominio.es/api/stripe/aviso`
-   - Eventos: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
-   - Copia el secreto de firma `whsec_…`.
-6. En `.env`:
-   ```ini
-   STRIPE_CLAVE_SECRETA=sk_test_...
-   STRIPE_PRECIO=price_...
-   STRIPE_SECRETO_AVISOS=whsec_...
-   ```
-7. `docker compose up -d`.
-8. Prueba: crea un usuario nuevo, añade plantas hasta el límite, suscríbete con la tarjeta `4242 4242 4242 4242` (cualquier fecha futura y CVC). En *Ajustes → Tu plan* debe salir «Suscripción activa», y en Stripe → Webhooks, los avisos con respuesta 200.
-
-Para cobrar de verdad, repite los pasos 2 a 5 en **modo real** (las claves y los precios son distintos), cambia las tres variables y reinicia. Antes, revisa la parte legal (condiciones, privacidad, desistimiento, IVA).
-
-## 8. Día a día
-
-```sh
-cd /opt/jardin
-
-# Actualizar a una versión nueva
-git pull && docker compose up -d --build
-
-# Registros
-docker compose logs -f --tail 100
-
-# Usuarios y contraseñas
-docker compose exec jardin node servidor/cli.js usuarios
-docker compose exec jardin node servidor/cli.js clave ana
-
-# Copia de seguridad (queda en ./datos/copias/)
-docker compose exec jardin node servidor/cli.js copia
+```bash
+cd /srv/mijardin/despliegue
+ls -lt datos/copias | head
+docker compose stop mijardin
+cp datos/copias/LA-COPIA.db datos/jardin.db && rm -f datos/jardin.db-wal datos/jardin.db-shm
+docker compose start mijardin
 ```
 
-Copia diaria a las 3:30 con `crontab -e`:
+## Incidencias posibles
 
-```cron
-30 3 * * * cd /opt/jardin && docker compose exec -T jardin node servidor/cli.js copia >/dev/null && find datos/copias -name '*.db' -mtime +30 -delete
-```
+| Síntoma | Causa y solución |
+|---|---|
+| `couldn't find remote ref main` | Aún no hay rama `main` con este código en GitHub, o `JARDIN_RAMA` apunta a otra. `git -C /srv/mijardin ls-remote origin main`. |
+| `Falta CADDY_NETWORK` | Rellénalo en `.env` con la red de `devenv-caddy` (paso 2). |
+| Bad gateway 502 | `mijardin` no está en la red de `CADDY_NETWORK` o no está `healthy`: `docker compose ps` y `logs`. |
+| El sitio no responde tras añadirlo | El fichero no acaba en `.caddy`, no está en `/srv/dev/caddy/sites`, o falta el `caddy reload`. |
+| El contenedor se reinicia con «permission denied» o `SQLITE_CANTOPEN` | `datos/` no es del usuario que despliega. `sudo chown -R ubuntu: datos` y `./actualizar.sh --forzar`. |
+| Entras y vuelve a pedir la contraseña | Estás entrando por http, o Caddy no manda `X-Forwarded-Proto`. Entra por https. |
+| «Petición rechazada: no viene de esta web» al guardar | El sitio de Caddy cambia la cabecera Host. Usa un `reverse_proxy` normal, como el del ejemplo. |
+| Al pagar no vuelve a la web | `URL_PUBLICA` mal puesta en `.env`. |
+| El cron no publica | `tail ~/mijardin-actualizar.log`. Puede ser un commit marcado como fallido (`cat datos/.commit-fallido`). Lanza `./actualizar.sh` a mano para ver el error. |
 
-Lleva `datos/copias/` también fuera del devbox (otro disco, un NAS, rclone…).
+## Pendiente de confirmar en la devbox
 
-## Si algo falla
-
-| Síntoma | Causa probable |
-| --- | --- |
-| El contenedor se reinicia sin parar y sale `SQLITE_CANTOPEN` o «permission denied» | La carpeta `datos` no es del usuario 1000 (paso 2) |
-| `502` en el navegador | Caddy no llega al contenedor: mira `curl 127.0.0.1:8080/salud` o la red compartida (paso 5) |
-| Entras y vuelve a pedir la contraseña | `COOKIE_SEGURA=si` pero entras por http, o falta `CONFIAR_PROXY=si` |
-| «Petición rechazada: no viene de esta web» al guardar | Caddy cambia la cabecera Host. Con un `reverse_proxy` normal no pasa |
-| Al pagar no vuelve a la web | `URL_PUBLICA` mal puesta |
-| Stripe marca los webhooks en rojo | Revisa el `whsec_…` y que la URL termine en `/api/stripe/aviso` |
+- El dominio definitivo y su registro DNS.
+- El valor de `CADDY_NETWORK` (el mismo que la escape room: `grep CADDY_NETWORK /srv/escaperoom2627/deploy/.env`).
+- Que `/srv/mijardin/despliegue/datos/copias` se copie fuera de la máquina, junto con los datos de la escape room.

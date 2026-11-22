@@ -1,0 +1,7 @@
+# Sitio del jardín para devenv-caddy.
+# Cópialo a /srv/dev/caddy/sites/mijardin.caddy, cambia el dominio y recarga Caddy:
+#   docker exec devenv-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+jardin.tudominio.es {
+	encode zstd gzip
+	reverse_proxy mijardin:8080
+}
