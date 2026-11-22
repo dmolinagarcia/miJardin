@@ -41,9 +41,7 @@ estado() {
 }
 
 version_actual() {
-  local mm
-  mm=$(sed -nE 's/^[[:space:]]*"version":[[:space:]]*"([0-9]+)\.([0-9]+)\..*/\1.\2/p' "$RAIZ/package.json" | head -n 1)
-  JARDIN_VERSION="${mm:-0.0}.$(git -C "$RAIZ" rev-list --count HEAD)"
+  JARDIN_VERSION=$("$DIR/version.sh")
   JARDIN_COMMIT=$(git -C "$RAIZ" rev-parse --short HEAD)
   export JARDIN_VERSION JARDIN_COMMIT
 }

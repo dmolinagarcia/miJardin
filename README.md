@@ -174,6 +174,10 @@ Se edita en el plano, o como JSON en *Ajustes → Editar los datos del plano*:
 - `plano.zonas`: textos sobre el plano, como «Fondo».
 - `plantas`: cada planta con `id`, `etiqueta`, `ficha`, `x`, `y` y `notas`.
 
+## Versiones
+
+La numeración empieza en 0.0.1 y cada commit sube el tercer dígito. El primero y el segundo solo cambian a mano, editando el archivo `VERSION` (por ejemplo a `0.1.0`): ese commit toma esa versión y los siguientes siguen contando desde ahí. La calcula `despliegue/version.sh`, la publicada se ve en `/version.json` y al pie de *Ajustes*.
+
 ## Detalles técnicos
 
 - `servidor/`: Node sin dependencias (`node:http`, `node:sqlite`, `node:crypto`).

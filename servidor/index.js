@@ -9,9 +9,18 @@ import { leerConfig, abrirBase, prepararDatos } from './arranque.js';
 import { manejarApi } from './api.js';
 import { limpiarSesiones } from './auth.js';
 
-// Versión: la pone despliegue/actualizar.sh al construir la imagen (mayor.menor.nº de commits).
+// Versión: la pone despliegue/actualizar.sh al construir la imagen (ver despliegue/version.sh).
+// Sin ella (npm start en desarrollo), la del archivo VERSION con «-dev».
+function versionLocal() {
+  try {
+    return `${readFileSync(new URL('../VERSION', import.meta.url), 'utf8').trim()}-dev`;
+  } catch {
+    return '0.0.0-dev';
+  }
+}
+
 export const VERSION = {
-  version: process.env.JARDIN_VERSION || `${JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version}-dev`,
+  version: process.env.JARDIN_VERSION || versionLocal(),
   commit: process.env.JARDIN_COMMIT || 'desconocido',
 };
 

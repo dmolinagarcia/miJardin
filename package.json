@@ -1,6 +1,5 @@
 {
   "name": "mi-jardin",
-  "version": "2.0.0",
   "private": true,
   "description": "Web multiusuario del jardín: plano, fichas y calendario por meses. Instalable como app.",
   "type": "module",

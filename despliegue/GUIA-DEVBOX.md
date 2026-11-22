@@ -22,7 +22,7 @@ desarrollo ──git push──► GitHub (main) ──cron cada 10 min──►
 | Sitio en Caddy | `/srv/dev/caddy/sites/mijardin.caddy`, copiado de `despliegue/Caddyfile.ejemplo` |
 | Actualización automática | cron del usuario `ubuntu`, instalado con `despliegue/programar.sh`: actualizar cada 10 min y copia diaria a las 3:17. Registro en `~/mijardin-actualizar.log` |
 | Administración | dentro de la web, pestaña *Admin* (cuentas con rol admin). En terminal: `servidor/cli.js` |
-| Salud y versión | `/salud` (healthcheck de Docker) y `/version.json`. La versión es `2.0.<nº de commits>` |
+| Salud y versión | `/salud` (healthcheck de Docker) y `/version.json`. Versión: ver abajo, *Numeración de versiones* |
 
 ## Puesta en marcha (una vez)
 
@@ -133,6 +133,12 @@ docker compose exec -e CLAVE='nueva-clave' mijardin node servidor/cli.js clave a
 ```
 
 **Usa siempre `actualizar.sh`, no `docker compose up -d --build`.** El script calcula la versión, pone el usuario correcto para escribir en `datos/` y hace la copia de seguridad. Construyendo a mano, la web sale como `0.0.0-dev`.
+
+## Numeración de versiones
+
+- Empieza en **0.0.1**. Cada commit nuevo sube el tercer dígito: 0.0.2, 0.0.3…
+- El primero y el segundo solo cambian cuando se decide expresamente: se edita el archivo `VERSION` de la raíz (p. ej. a `0.1.0`) y ese commit pasa a ser esa versión; los siguientes, 0.1.1, 0.1.2…
+- `despliegue/version.sh` dice la versión del código que hay en el clon; `/version.json`, la que está publicada.
 
 ## Restaurar una copia a mano
 
