@@ -31,7 +31,7 @@ const RUTAS = [
   [/^#\/admin$/, (app) => vistaAdmin(app)],
   [/^#\/admin\/ficha\/([\w-]+)$/, (app, m) => vistaEditor(app, m[1], 'base')],
   [/^#\/admin\/nueva$/, (app) => vistaNueva(app)],
-  [/^#\/ajustes$/, (app) => vistaAjustes(app)],
+  [/^#\/ajustes(?:\/(pago-ok|pago-cancelado))?$/, (app, m) => vistaAjustes(app, m[1] || null)],
   [/^#\/datos$/, (app) => vistaDatos(app)],
 ];
 
@@ -142,6 +142,11 @@ async function pantallaEntrar() {
     ...cfg,
     alEntrar: async (usuario) => {
       estado.yo = usuario;
+      try {
+        await cargarYo();
+      } catch {
+        /* se sigue con lo que devolvió la entrada */
+      }
       await arrancarConSesion();
     },
   });

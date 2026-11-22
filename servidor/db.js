@@ -6,6 +6,7 @@
 //   fichas_historial  todas las versiones de cada ficha base
 //   notas             lo que cada usuario añade a cada ficha, y qué versión de la base vio por última vez
 //   jardines          el plano y las plantas de cada usuario
+//   stripe_eventos    avisos de Stripe ya procesados (para no aplicarlos dos veces)
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
@@ -62,6 +63,22 @@ const ESQUEMA = [
     datos TEXT NOT NULL,
     version INTEGER NOT NULL DEFAULT 1,
     actualizado TEXT NOT NULL
+  );
+  `,
+  // Versión 2: suscripciones
+  `
+  ALTER TABLE usuarios ADD COLUMN premium_manual INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE usuarios ADD COLUMN stripe_cliente TEXT;
+  ALTER TABLE usuarios ADD COLUMN stripe_suscripcion TEXT;
+  ALTER TABLE usuarios ADD COLUMN suscripcion_estado TEXT;
+  ALTER TABLE usuarios ADD COLUMN suscripcion_hasta TEXT;
+  ALTER TABLE usuarios ADD COLUMN suscripcion_cancela INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE usuarios ADD COLUMN suscripcion_sync TEXT;
+  CREATE UNIQUE INDEX usuarios_stripe_cliente ON usuarios(stripe_cliente) WHERE stripe_cliente IS NOT NULL;
+  CREATE TABLE stripe_eventos (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    recibido TEXT NOT NULL
   );
   `,
 ];

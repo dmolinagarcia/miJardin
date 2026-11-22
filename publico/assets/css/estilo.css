@@ -2401,3 +2401,48 @@ body.sin-sesion .enlace-ajustes {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- Plan y suscripción ---------- */
+
+.medidor {
+  height: 10px;
+  max-width: 24rem;
+  margin: 0 0 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--hundido);
+}
+
+.medidor span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--acento);
+}
+
+#panel-plan .insignia {
+  margin-right: 6px;
+}
+
+#plan .aviso-borrador {
+  font-weight: 700;
+}
+
+.contador-plan {
+  margin: 0 0 10px;
+  color: var(--tinta-2);
+  font-weight: 700;
+}
+
+.entrar-plan {
+  margin: -4px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--acento-suave);
+  color: var(--acento);
+  font-weight: 700;
+}
+
+.resumen-plan {
+  margin: 0 0 4px;
+}

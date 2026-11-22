@@ -42,7 +42,8 @@ test('sin sesión no se ve nada privado', async () => {
   assert.equal((await pedir('GET', '/api/jardin')).status, 401);
   const cfg = await pedir('GET', '/api/config');
   assert.equal(cfg.status, 200);
-  assert.equal(cfg.datos.registroAbierto, false);
+  assert.equal(cfg.datos.registroAbierto, true);
+  assert.equal(cfg.datos.limitePlantas, 10);
 });
 
 test('archivos estáticos y protección de rutas', async () => {

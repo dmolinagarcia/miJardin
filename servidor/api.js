@@ -1,11 +1,13 @@
 // api.js — la API JSON en /api/…
 //
 // Públicas:  GET /api/config · POST /api/sesion · POST /api/registro (si está abierto)
-// Con sesión: /api/yo · /api/fichas · /api/fichas/:id/notas · /api/jardin
+//            POST /api/stripe/aviso (avisos firmados de Stripe)
+// Con sesión: /api/yo · /api/fichas · /api/fichas/:id/notas · /api/jardin · /api/suscripcion/…
 // Solo admin: /api/admin/fichas · /api/admin/usuarios
 
 import { ahora, transaccion } from './db.js';
 import * as auth from './auth.js';
+import * as sus from './suscripcion.js';
 
 const RE_FICHA = /^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$/;
 const RE_USUARIO = /^[a-z0-9][a-z0-9._-]{1,39}$/i;
@@ -35,8 +37,34 @@ export function jardinVacio(nombre) {
 
 // ---------- Utilidades de petición ----------
 
+async function leerCrudo(req, limite) {
+  const trozos = [];
+  let total = 0;
+  for await (const t of req) {
+    total += t.length;
+    if (total > limite) fallo(413, 'El contenido es demasiado grande.');
+    trozos.push(t);
+  }
+  return Buffer.concat(trozos);
+}
+
+// Dirección pública de la web, para los enlaces de vuelta desde Stripe.
+function baseDe(req, cfg) {
+  if (cfg.urlPublica) return cfg.urlPublica.replace(/\/+$/, '');
+  const cab = (n) => String(req.headers[n] || '').split(',')[0].trim();
+  const proto = (cfg.confiarProxy && cab('x-forwarded-proto')) || (req.socket.encrypted ? 'https' : 'http');
+  const host = (cfg.confiarProxy && cab('x-forwarded-host')) || cab('host');
+  return `${proto}://${host}`;
+}
+
+function contarPlantas(datos) {
+  return Array.isArray(datos?.plantas) ? datos.plantas.length : 0;
+}
+
 async function leerCuerpo(req, limite) {
   const tipo = String(req.headers['content-type'] || '');
+  const sinCuerpo = !req.headers['transfer-encoding'] && Number(req.headers['content-length'] || 0) === 0;
+  if (sinCuerpo && !tipo) return {};
   if (!/^application\/json\b/i.test(tipo)) fallo(415, 'La petición debe ser JSON.');
   const trozos = [];
   let total = 0;
@@ -162,9 +190,12 @@ const soloAdmin = { admin: true };
 
 // --- Sesión y cuenta ---
 
-ruta('GET', '/api/config', publica, ({ db, cfg }) => ({
+ruta('GET', '/api/config', publica, async ({ db, cfg }) => ({
   registroAbierto: cfg.registroAbierto,
   sinUsuarios: db.prepare('SELECT COUNT(*) AS n FROM usuarios').get().n === 0,
+  limitePlantas: cfg.limitePlantas,
+  pagos: sus.pagosActivos(cfg),
+  precio: await sus.textoPrecio(cfg),
 }));
 
 ruta('POST', '/api/sesion', publica, async ({ db, req, ip, cuerpo, res, cfg }) => {
@@ -201,7 +232,10 @@ ruta('POST', '/api/registro', publica, async ({ db, cuerpo, res, req, cfg, ip })
   return { usuario: u };
 });
 
-ruta('GET', '/api/yo', conSesion, ({ yo }) => ({ usuario: publicoUsuario(yo) }));
+ruta('GET', '/api/yo', conSesion, async ({ db, cfg, yo }) => ({
+  usuario: publicoUsuario(yo),
+  suscripcion: await sus.refrescarSiHaceFalta(db, cfg, yo.id),
+}));
 
 ruta('PATCH', '/api/yo', conSesion, ({ db, yo, cuerpo }) => {
   const nombre = nombreValido(cuerpo.nombre);
@@ -263,7 +297,7 @@ ruta('POST', '/api/fichas/:id/vista', conSesion, ({ db, yo, p, cuerpo }) => {
 
 ruta('GET', '/api/jardin', conSesion, ({ db, yo }) => jardinDe(db, yo));
 
-ruta('PUT', '/api/jardin', conSesion, ({ db, yo, cuerpo }) => {
+ruta('PUT', '/api/jardin', conSesion, ({ db, cfg, yo, cuerpo }) => {
   const datos = cuerpo.datos;
   if (!datos || typeof datos !== 'object' || Array.isArray(datos)) fallo(400, 'Los datos del jardín deben ser un objeto.');
   const json = JSON.stringify(datos);
@@ -274,11 +308,40 @@ ruta('PUT', '/api/jardin', conSesion, ({ db, yo, cuerpo }) => {
     if (!cuerpo.forzar && esperada !== null && esperada !== actual.version) {
       fallo(409, 'El jardín ha cambiado desde otro dispositivo.', { conflicto: true, actual });
     }
+    // Plan gratuito: no se puede pasar del límite. Quien ya lo pasaba (p. ej. al acabar la
+    // suscripción) conserva sus plantas y puede moverlas o quitarlas, pero no añadir más.
+    const n = contarPlantas(datos);
+    if (n > cfg.limitePlantas && n > contarPlantas(actual.datos) && !sus.esPremium(db, cfg, yo.id)) {
+      fallo(402, `Con el plan gratuito puedes tener hasta ${cfg.limitePlantas} plantas en el plano. Para añadir más, suscríbete.`, {
+        limite: cfg.limitePlantas,
+      });
+    }
     const fecha = ahora();
     db.prepare('UPDATE jardines SET datos = ?, version = ?, actualizado = ? WHERE usuario_id = ?').run(json, actual.version + 1, fecha, yo.id);
     return { datos, version: actual.version + 1, actualizado: fecha };
   });
 });
+
+// --- Suscripción ---
+
+ruta('POST', '/api/suscripcion/pagar', conSesion, async ({ db, cfg, yo, req }) => {
+  if (!sus.pagosActivos(cfg)) fallo(503, 'Los pagos no están configurados en este servidor.');
+  if (yo.rol === 'admin') fallo(400, 'Las cuentas de administración no tienen límite de plantas.');
+  return { url: await sus.crearPago(db, cfg, yo.id, baseDe(req, cfg)) };
+});
+
+ruta('POST', '/api/suscripcion/portal', conSesion, async ({ db, cfg, yo, req }) => {
+  if (!sus.pagosActivos(cfg)) fallo(503, 'Los pagos no están configurados en este servidor.');
+  return { url: await sus.crearPortal(db, cfg, yo.id, baseDe(req, cfg)) };
+});
+
+ruta('POST', '/api/suscripcion/sincronizar', conSesion, async ({ db, cfg, yo }) => ({
+  suscripcion: await sus.sincronizar(db, cfg, yo.id),
+}));
+
+ruta('POST', '/api/stripe/aviso', { publica: true, externa: true, crudo: true }, async ({ db, cfg, req, crudo }) =>
+  sus.recibirAviso(db, cfg, crudo, req.headers['stripe-signature']),
+);
 
 // --- Administración: catálogo de fichas ---
 
@@ -337,11 +400,25 @@ ruta('GET', '/api/admin/fichas/:id/historial', soloAdmin, ({ db, p }) => ({
 
 // --- Administración: usuarios ---
 
-ruta('GET', '/api/admin/usuarios', soloAdmin, ({ db }) => ({
+ruta('GET', '/api/admin/usuarios', soloAdmin, ({ db, cfg }) => ({
   usuarios: db
-    .prepare('SELECT id, usuario, nombre, rol, activo, creado, ultimo_acceso FROM usuarios ORDER BY usuario')
+    .prepare(
+      `SELECT u.*, COALESCE(json_array_length(j.datos, '$.plantas'), 0) AS plantas
+       FROM usuarios u LEFT JOIN jardines j ON j.usuario_id = u.id ORDER BY u.usuario`,
+    )
     .all()
-    .map((u) => ({ ...u, activo: Boolean(u.activo) })),
+    .map((u) => ({
+      id: u.id,
+      usuario: u.usuario,
+      nombre: u.nombre,
+      rol: u.rol,
+      activo: Boolean(u.activo),
+      creado: u.creado,
+      ultimo_acceso: u.ultimo_acceso,
+      plantas: u.plantas,
+      premiumManual: Boolean(u.premium_manual),
+      suscripcion: sus.estadoDe(u, cfg),
+    })),
 }));
 
 ruta('POST', '/api/admin/usuarios', soloAdmin, async ({ db, cuerpo, res }) => {
@@ -360,6 +437,7 @@ ruta('PATCH', '/api/admin/usuarios/:id', soloAdmin, async ({ db, yo, p, cuerpo }
     cambios.rol = cuerpo.rol;
   }
   if (cuerpo.activo !== undefined) cambios.activo = cuerpo.activo ? 1 : 0;
+  if (cuerpo.premium !== undefined) cambios.premium_manual = cuerpo.premium ? 1 : 0;
   if (cuerpo.clave !== undefined) {
     const error = auth.validarClave(cuerpo.clave);
     if (error) fallo(400, error);
@@ -405,8 +483,8 @@ export async function manejarApi(req, res, ctx) {
     const r = candidatas.find((x) => x.metodo === metodo);
     if (!r) fallo(405, 'Método no permitido.');
 
-    // Las peticiones que cambian algo tienen que venir de esta misma web.
-    if (metodo !== 'GET' && !cfg.mismoOrigen(req)) fallo(403, 'Petición rechazada: no viene de esta web.');
+    // Las peticiones que cambian algo tienen que venir de esta misma web (salvo los avisos de Stripe, que van firmados).
+    if (metodo !== 'GET' && !r.externa && !cfg.mismoOrigen(req)) fallo(403, 'Petición rechazada: no viene de esta web.');
 
     const yo = auth.usuarioDeSesion(db, req);
     if (!r.publica && !yo) fallo(401, 'Tienes que entrar con tu usuario.');
@@ -414,14 +492,17 @@ export async function manejarApi(req, res, ctx) {
 
     const m = url.pathname.match(r.re);
     const p = Object.fromEntries(r.claves.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
-    const cuerpo = ['POST', 'PUT', 'PATCH'].includes(metodo)
+    const crudo = r.crudo ? await leerCrudo(req, 1_000_000) : null;
+    const cuerpo = !r.crudo && ['POST', 'PUT', 'PATCH'].includes(metodo)
       ? await leerCuerpo(req, url.pathname.startsWith('/api/admin/fichas') ? MAX_FICHA * 2 : MAX_JARDIN + 10_000)
       : {};
-    const datos = await r.fn({ ...ctx, req, res, yo, p, cuerpo, ip: cfg.ipDe(req), url });
+    const datos = await r.fn({ ...ctx, req, res, yo, p, cuerpo, crudo, ip: cfg.ipDe(req), url });
     enviar(res.statusCode && res.statusCode !== 200 ? res.statusCode : 200, datos);
   } catch (e) {
     if (e instanceof ErrorApi) {
       enviar(e.status, { error: e.message, ...e.extra });
+    } else if (Number.isInteger(e.status) && e.status >= 400) {
+      enviar(e.status, { error: e.message });
     } else {
       console.error(e);
       enviar(500, { error: 'Error interno del servidor.' });

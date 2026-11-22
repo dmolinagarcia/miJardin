@@ -4,7 +4,10 @@ import { esc } from './md.js';
 import { $ } from './ui.js';
 import * as api from './api.js';
 
-export function vistaEntrar(app, { registroAbierto = false, sinUsuarios = false, alEntrar }) {
+export function vistaEntrar(app, { registroAbierto = false, sinUsuarios = false, limitePlantas, precio = '', alEntrar }) {
+  const plan = Number.isFinite(limitePlantas)
+    ? `Gratis hasta ${limitePlantas} plantas en tu plano${precio ? `; si quieres más, ${esc(precio)} sin permanencia` : ''}.`
+    : '';
   let modo = 'entrar';
 
   function pintar() {
@@ -19,6 +22,7 @@ export function vistaEntrar(app, { registroAbierto = false, sinUsuarios = false,
         </svg>
       </div>
       <h1>${alta ? 'Crear una cuenta' : 'Entrar en tu jardín'}</h1>
+      ${alta && plan ? `<p class="entrar-plan">${plan}</p>` : ''}
       ${
         sinUsuarios
           ? `<p class="aviso-borrador">Todavía no hay ninguna cuenta. Crea el primer administrador en el servidor con
@@ -51,7 +55,7 @@ export function vistaEntrar(app, { registroAbierto = false, sinUsuarios = false,
           ? `<p class="entrar-cambio">${
               alta
                 ? '¿Ya tienes cuenta? <button type="button" class="boton-texto" data-modo="entrar">Entra</button>'
-                : '¿No tienes cuenta? <button type="button" class="boton-texto" data-modo="alta">Crea una</button>'
+                : `¿No tienes cuenta? <button type="button" class="boton-texto" data-modo="alta">Crea una gratis</button>${plan ? `<br><span class="nota">${plan}</span>` : ''}`
             }</p>`
           : '<p class="nota entrar-cambio">Si no tienes cuenta, pídesela a quien administra la web.</p>'
       }

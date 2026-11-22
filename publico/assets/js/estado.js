@@ -9,6 +9,8 @@ const COLORES = ['#b0243b', '#5b4687', '#2f7357', '#9a6a12', '#2c5f8a', '#8a4f2c
 
 export const estado = {
   yo: null, // { id, usuario, nombre, rol }
+  suscripcion: { premium: false, limite: Infinity }, // ver servidor/suscripcion.js
+  config: { registroAbierto: false, limitePlantas: Infinity, pagos: false, precio: '' },
   jardin: null,
   versionJardin: 0,
   catalogo: new Map(), // id → { id, texto, version, actualizada, notas, vista } tal como llega del servidor
@@ -136,14 +138,30 @@ function rehacerFichas() {
 }
 
 export async function cargarYo() {
-  const { usuario } = await api.get('yo');
+  const { usuario, suscripcion } = await api.get('yo');
   estado.yo = usuario;
+  if (suscripcion) estado.suscripcion = suscripcion;
   return usuario;
+}
+
+export async function cargarConfig() {
+  try {
+    estado.config = { ...estado.config, ...(await api.get('config')) };
+  } catch {
+    /* se sigue con lo que hubiera */
+  }
+  return estado.config;
+}
+
+// Plan gratuito: cuántas plantas caben todavía en el plano (Infinity si no hay límite).
+export function plantasLibres(n = estado.jardin?.plantas.length || 0) {
+  if (estado.suscripcion.premium) return Infinity;
+  return Math.max(0, estado.suscripcion.limite - n);
 }
 
 export async function cargarTodo() {
   estado.avisoCarga = '';
-  const [{ fichas }, jardin] = await Promise.all([api.get('fichas'), api.get('jardin')]);
+  const [{ fichas }, jardin] = await Promise.all([api.get('fichas'), api.get('jardin'), cargarConfig()]);
   estado.catalogo = new Map(fichas.map((f) => [f.id, f]));
   rehacerFichas();
   estado.jardin = normalizarJardin(jardin.datos);

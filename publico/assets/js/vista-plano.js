@@ -11,6 +11,7 @@ import {
   mesActual,
   guardarJardin,
 } from './estado.js';
+import { hojaLimite } from './suscripcion.js';
 import { montarPlano } from './plano.js';
 import { ICONOS, abrirHoja, cerrarHoja, confirmar, aviso, guardarConConflicto } from './ui.js';
 import { ponerGuardia, ponerSalida } from './rutas.js';
@@ -55,6 +56,11 @@ export function vistaPlano(contenedor, idSeleccion) {
       edicion
         ? `<div class="barra-edicion" role="region" aria-label="Edición del plano">
         <p>Arrastra las plantas para moverlas. Tócalas para cambiar sus datos.</p>
+        ${
+          estado.suscripcion.premium
+            ? ''
+            : `<p class="contador-plan">Plan gratuito: ${jardin.plantas.length} de ${estado.suscripcion.limite} plantas.</p>`
+        }
         <div class="acciones">
           <button type="button" class="boton secundario" data-accion="anadir">${ICONOS.mas}Añadir planta</button>
           <button type="button" class="boton" data-accion="guardar"${edicion.cambios ? '' : ' disabled'}>Guardar cambios</button>
@@ -228,10 +234,17 @@ async function guardarEdicion(boton) {
     aviso('Plano guardado.');
     vistaPlano(app, null);
   } catch (e) {
-    aviso(e.message, 'error');
+    if (e.status === 402) hojaLimite();
+    else aviso(e.message, 'error');
     boton.disabled = false;
     boton.textContent = 'Guardar cambios';
   }
+}
+
+// Sin suscripción no se puede pasar del límite, salvo que ya se tuvieran más plantas guardadas.
+function caben() {
+  if (estado.suscripcion.premium) return true;
+  return datos().plantas.length < Math.max(estado.suscripcion.limite, estado.jardin.plantas.length);
 }
 
 function siguienteEtiqueta(fichaId, plantas) {
@@ -261,6 +274,10 @@ function anadirPlanta() {
   const fichas = listaFichas().length ? listaFichas() : listaCatalogo();
   if (!fichas.length) {
     aviso('El catálogo de fichas está vacío. Hace falta que la administración cree alguna.', 'error');
+    return;
+  }
+  if (!caben()) {
+    hojaLimite();
     return;
   }
   const [x, y] = plano.centroVisible();

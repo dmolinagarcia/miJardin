@@ -6,6 +6,7 @@ import { ICONOS, $, aviso, confirmar, descargar, guardarConConflicto } from './u
 import { ponerGuardia } from './rutas.js';
 import { puedeInstalar, instalada, esIOS, instalar, borrarCopiaDatos } from './instalar.js';
 import * as api from './api.js';
+import { htmlPlan, conectarBotones, sincronizar } from './suscripcion.js';
 
 function panelInstalar() {
   if (instalada()) return '<p>Estás usando la web como app instalada.</p>';
@@ -22,7 +23,8 @@ function panelInstalar() {
   return '<p>En el móvil, abre el menú del navegador y elige <strong>Instalar app</strong> o <strong>Añadir a pantalla de inicio</strong>.</p>';
 }
 
-export function vistaAjustes(app) {
+// pago: 'pago-ok' o 'pago-cancelado' al volver de la página de pago de Stripe.
+export function vistaAjustes(app, pago = null) {
   const yo = estado.yo;
   app.innerHTML = `
   <section class="ajustes">
@@ -58,6 +60,13 @@ export function vistaAjustes(app) {
       <div class="acciones"><button class="boton secundario" type="button" data-accion="salir">${ICONOS.salir}Cerrar sesión</button></div>
     </section>
 
+    <section class="panel" id="plan">
+      <h2>Tu plan</h2>
+      ${pago === 'pago-ok' ? '<p class="aviso-borrador" id="comprobando" role="status">Comprobando el pago…</p>' : ''}
+      ${pago === 'pago-cancelado' ? '<p class="aviso-borrador" role="status">Has salido de la página de pago sin suscribirte. No se te ha cobrado nada.</p>' : ''}
+      <div class="prosa-ui" id="panel-plan">${htmlPlan(estado.jardin.plantas.length)}</div>
+    </section>
+
     <section class="panel">
       <h2>La app en el móvil</h2>
       <div class="prosa-ui" id="panel-instalar">${panelInstalar()}</div>
@@ -88,6 +97,36 @@ export function vistaAjustes(app) {
     if (panel) panel.innerHTML = panelInstalar();
   };
   window.addEventListener('jardin:instalable', actualizarInstalar, { once: true });
+  conectarBotones($('#plan', app));
+
+  const pintarPlan = () => {
+    const panel = $('#panel-plan', app);
+    if (panel) panel.innerHTML = htmlPlan(estado.jardin.plantas.length);
+  };
+  if (pago) {
+    history.replaceState(null, '', '#/ajustes');
+    $('#plan', app).scrollIntoView({ block: 'start' });
+  }
+  if (pago === 'pago-ok') {
+    // Stripe puede tardar unos segundos en dar la suscripción por activa.
+    (async () => {
+      const aviso1 = $('#comprobando', app);
+      for (let intento = 0; intento < 5; intento++) {
+        try {
+          const s = await sincronizar();
+          if (s.premium || intento === 4) break;
+        } catch {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      pintarPlan();
+      if (!aviso1?.isConnected) return;
+      aviso1.textContent = estado.suscripcion.motivo === 'stripe'
+        ? '¡Gracias! Tu suscripción está activa.'
+        : 'Todavía no nos ha llegado la confirmación del pago. Si has pagado, aparecerá en unos minutos.';
+    })();
+  }
 
   $('#form-nombre', app).addEventListener('submit', async (e) => {
     e.preventDefault();

@@ -26,6 +26,8 @@ export async function vistaAdmin(contenedor) {
   if (!location.hash.startsWith('#/admin')) return; // se ha cambiado de vista mientras cargaba
 
   const activas = fichas.filter((f) => !f.archivada);
+  const suscritos = usuarios.filter((u) => u.suscripcion.motivo === 'stripe').length;
+  const regalados = usuarios.filter((u) => u.suscripcion.motivo === 'manual').length;
   const archivadas = fichas.filter((f) => f.archivada);
 
   app.innerHTML = `
@@ -55,6 +57,7 @@ export async function vistaAdmin(contenedor) {
         <h2 id="t-usuarios">Usuarios <span class="cuenta">${usuarios.length}</span></h2>
         <button type="button" class="boton" data-accion="nuevo-usuario">${ICONOS.mas}Nuevo usuario</button>
       </div>
+      <p class="nota resumen-plan">${suscritos} con suscripción de pago${regalados ? ` · ${regalados} sin límite concedido por administración` : ''} · plan gratuito hasta ${estado.suscripcion.limite} plantas.</p>
       <ul class="filas-admin">${usuarios.map(filaUsuario).join('')}</ul>
     </section>
   </section>`;
@@ -100,14 +103,21 @@ function filaFicha(f) {
   </li>`;
 }
 
+function insigniaPlan(u) {
+  const s = u.suscripcion;
+  if (s.motivo === 'stripe') return ` <span class="insignia tuya">${s.impago ? 'Pago pendiente' : s.cancela ? 'Suscrito, cancela' : 'Suscrito'}</span>`;
+  if (s.motivo === 'manual') return ' <span class="insignia tuya">Sin límite (regalo)</span>';
+  return '';
+}
+
 function filaUsuario(u) {
   const yo = u.id === estado.yo.id;
   return `<li class="fila-admin">
     <span class="avatar" aria-hidden="true">${esc((u.nombre || u.usuario).charAt(0).toUpperCase())}</span>
     <span class="fila-admin-texto">
       <span class="fila-admin-nombre">${esc(u.nombre)}${yo ? ' <span class="cuenta">tú</span>' : ''}
-        ${u.rol === 'admin' ? '<span class="insignia">Admin</span>' : ''}${u.activo ? '' : ' <span class="insignia apagada">Desactivado</span>'}</span>
-      <span class="fila-admin-meta">${esc(u.usuario)} · ${u.ultimo_acceso ? `última entrada ${esc(fechaCorta(Date.parse(u.ultimo_acceso)))}` : 'no ha entrado nunca'}</span>
+        ${u.rol === 'admin' ? '<span class="insignia">Admin</span>' : ''}${insigniaPlan(u)}${u.activo ? '' : ' <span class="insignia apagada">Desactivado</span>'}</span>
+      <span class="fila-admin-meta">${esc(u.usuario)} · ${u.plantas} ${u.plantas === 1 ? 'planta' : 'plantas'} · ${u.ultimo_acceso ? `última entrada ${esc(fechaCorta(Date.parse(u.ultimo_acceso)))}` : 'no ha entrado nunca'}</span>
     </span>
     <span class="fila-admin-acciones">
       <button type="button" class="boton secundario" data-accion="usuario" data-id="${u.id}">Editar</button>
@@ -240,7 +250,19 @@ function hojaUsuario(u) {
       ${
         nuevo || yo
           ? ''
-          : `<label class="casilla"><input type="checkbox" id="us-activo"${u.activo ? ' checked' : ''}> Cuenta activa</label>`
+          : `<label class="casilla"><input type="checkbox" id="us-activo"${u.activo ? ' checked' : ''}> Cuenta activa</label>
+             ${
+               u.rol === 'admin'
+                 ? ''
+                 : `<label class="casilla"><input type="checkbox" id="us-premium"${u.premiumManual ? ' checked' : ''}> Plantas sin límite sin pagar</label>
+             <p class="ayuda-campo">${
+               u.suscripcion.motivo === 'stripe'
+                 ? `Tiene una suscripción de pago${u.suscripcion.hasta ? ` hasta el ${esc(fechaLarga(u.suscripcion.hasta))}` : ''}. Se gestiona desde Stripe.`
+                 : u.suscripcion.estado
+                   ? `Su suscripción de pago está en estado «${esc(u.suscripcion.estado)}».`
+                   : 'No tiene suscripción de pago.'
+             }</p>`
+             }`
       }
       <p class="error-campo" id="us-error" role="alert" hidden></p>
       <div class="acciones">
@@ -264,6 +286,8 @@ function hojaUsuario(u) {
             if (!yo) cambios.rol = valor('#us-rol');
             const activo = form.querySelector('#us-activo');
             if (activo) cambios.activo = activo.checked;
+            const premium = form.querySelector('#us-premium');
+            if (premium) cambios.premium = premium.checked;
             if (valor('#us-clave')) cambios.clave = valor('#us-clave');
             await api.patch(`admin/usuarios/${u.id}`, cambios);
             if (yo) estado.yo.nombre = cambios.nombre;

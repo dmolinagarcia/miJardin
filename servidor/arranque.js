@@ -21,7 +21,18 @@ export function leerConfig(env = process.env) {
     datos: env.DATOS || join(RAIZ, 'datos'),
     publico: join(RAIZ, 'publico'),
     semillas: env.SEMILLAS || join(RAIZ, 'semillas'),
-    registroAbierto: si(env.REGISTRO_ABIERTO),
+    // El registro es libre salvo que se cierre con REGISTRO_ABIERTO=no.
+    registroAbierto: env.REGISTRO_ABIERTO === undefined || env.REGISTRO_ABIERTO === '' ? true : si(env.REGISTRO_ABIERTO),
+    limitePlantas: Math.max(0, Number.parseInt(env.LIMITE_PLANTAS_GRATIS ?? '10', 10) || 0),
+    urlPublica: env.URL_PUBLICA || '',
+    precioTexto: env.PRECIO_TEXTO || '',
+    stripe: {
+      clave: env.STRIPE_CLAVE_SECRETA || '',
+      precio: env.STRIPE_PRECIO || '',
+      secretoAvisos: env.STRIPE_SECRETO_AVISOS || '',
+      impuestos: si(env.STRIPE_IMPUESTOS),
+      api: env.STRIPE_API || 'https://api.stripe.com',
+    },
     confiarProxy,
     ipDe: (req) => (confiarProxy && cabecera(req, 'x-forwarded-for')) || req.socket.remoteAddress || '',
     cookieSegura: (req) => {

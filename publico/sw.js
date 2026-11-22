@@ -3,7 +3,7 @@
 //  · Datos (/api/… GET): primero la red; sin conexión, la última copia guardada.
 //  · Lo que guarda cambios (POST, PUT…) va siempre a la red.
 
-const VERSION = 'v2-1';
+const VERSION = 'v2-2';
 const WEB = `jardin-web-${VERSION}`;
 const DATOS = 'jardin-datos';
 
@@ -18,7 +18,7 @@ const ARCHIVOS = [
   'assets/fuentes/literata-latin-wght-normal.woff2',
   'assets/fuentes/literata-latin-wght-italic.woff2',
   ...[
-    'api', 'app', 'estado', 'instalar', 'linea', 'md', 'plano', 'rutas', 'ui',
+    'api', 'app', 'estado', 'instalar', 'linea', 'md', 'plano', 'rutas', 'suscripcion', 'ui',
     'vista-admin', 'vista-ajustes', 'vista-entrar', 'vista-fichas', 'vista-plano', 'vista-temporada',
   ].map((n) => `assets/js/${n}.js`),
 ];

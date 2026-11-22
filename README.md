@@ -7,6 +7,8 @@ Web multiusuario para llevar el jardín, pensada para el móvil e instalable com
 - **Fichas**: el catálogo común de fichas de plantas, cada una con su calendario de tareas sobre los doce meses, y **tus notas** encima.
 - **Admin** (solo administradores): el catálogo central de fichas y las cuentas de usuario.
 
+El registro es libre. Cada cuenta puede tener **gratis hasta un número de plantas** en su plano (10 por defecto); para tener más, se paga una **suscripción mensual** con Stripe.
+
 Funciona con un servidor Node pequeño, sin dependencias, que guarda todo en una base SQLite. No usa GitHub ni ningún servicio externo.
 
 ## Cómo se organiza
@@ -16,7 +18,7 @@ Funciona con un servidor Node pequeño, sin dependencias, que guarda todo en una
 | Ficha base de cada planta (catálogo) | Administradores, en *Admin* | Todos los usuarios |
 | Notas sobre una ficha | Cada usuario, las suyas | Solo su autor |
 | Jardín: plano, plantas y fichas que tiene | Cada usuario, el suyo | Solo su dueño |
-| Cuentas | Administradores | — |
+| Cuentas | Cada usuario se registra; los administradores las gestionan | — |
 
 - Cuando un administrador publica una ficha, todos ven la versión nueva al momento. Las notas de cada usuario se conservan, y en sus fichas aparece el aviso «Actualizada» hasta que la abren.
 - Cada publicación es una versión nueva. Desde *Admin → Versiones* se puede ver cualquiera anterior y volver a ella.
@@ -62,6 +64,31 @@ Los móviles solo instalan la web como app si se sirve por **https** (o en `loca
 
 Luego, en el móvil: en Android/Chrome, *Ajustes → La app en el móvil → Instalar la app* (o el menú del navegador). En iPhone, en Safari, *Compartir → Añadir a la pantalla de inicio*. Instalada, se abre a pantalla completa y deja consultar el jardín sin conexión (la última copia descargada).
 
+## Plan gratuito y suscripción
+
+- Sin pagar, una cuenta puede tener hasta `LIMITE_PLANTAS_GRATIS` plantas en el plano. Fichas, notas, calendario y todo lo demás no tienen límite.
+- Al intentar pasar del límite, la web ofrece la suscripción. El pago se hace en la página de Stripe (tarjeta, Apple Pay, Google Pay…); la web no ve nunca los datos de la tarjeta.
+- Desde *Ajustes → Tu plan*, el usuario ve cuántas plantas lleva y, si está suscrito, abre el portal de Stripe para cambiar la tarjeta, descargar facturas o cancelar.
+- Si la suscripción termina, el usuario **conserva todas sus plantas** y puede moverlas, editarlas o quitarlas, pero no añadir más hasta volver a suscribirse.
+- Si un cobro falla, Stripe lo reintenta durante unos días; mientras tanto se mantiene el acceso y se avisa al usuario.
+- Los administradores no tienen límite, y en *Admin → Usuarios → Editar* pueden dar plantas sin límite a cualquiera sin que pague (familia, pruebas…).
+- El servidor comprueba el límite al guardar: no se puede saltar desde el navegador.
+
+### Poner en marcha Stripe
+
+1. Crea una cuenta en <https://dashboard.stripe.com>. Empieza en **modo de prueba** (claves `sk_test_…`) y paga con la tarjeta `4242 4242 4242 4242`.
+2. En *Catálogo de productos*, crea un producto («Jardín sin límite») con un **precio recurrente mensual**. Copia su identificador `price_…` a `STRIPE_PRECIO`.
+3. En *Desarrolladores → Claves de API*, copia la clave secreta a `STRIPE_CLAVE_SECRETA`.
+4. En *Configuración → Billing → Portal de clientes*, guarda la configuración del portal (permite cancelar y actualizar el método de pago). Sin esto, el botón «Gestionar la suscripción» falla.
+5. Recomendado: en *Desarrolladores → Webhooks*, añade el endpoint `https://TU-DOMINIO/api/stripe/aviso` con los eventos `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated` y `customer.subscription.deleted`. Copia su secreto `whsec_…` a `STRIPE_SECRETO_AVISOS`.
+6. Pon `URL_PUBLICA` con la dirección https de la web y reinicia.
+
+El webhook necesita que Stripe pueda llegar al servidor desde internet. Si el devbox solo es accesible en tu red (por ejemplo con `tailscale serve`), puedes dejarlo sin webhook: la web pregunta a Stripe por la suscripción al volver del pago y, como mucho, cada 6 horas cuando el usuario la abre, así que las renovaciones y cancelaciones se acaban reflejando igual. Con Tailscale también puedes publicar solo esa dirección con `tailscale funnel`.
+
+Para probar los webhooks en local: `stripe listen --forward-to localhost:8080/api/stripe/aviso` (con la CLI de Stripe), que te da un `whsec_…` temporal.
+
+**Antes de cobrar de verdad**: vender suscripciones en España/UE exige mostrar condiciones de contratación, política de privacidad e información sobre el desistimiento, y declarar el IVA (Stripe Tax lo puede calcular con `STRIPE_IMPUESTOS=si`). Consúltalo con tu gestoría.
+
 ## Variables de entorno
 
 | Variable | Por defecto | Para qué |
@@ -70,7 +97,14 @@ Luego, en el móvil: en Android/Chrome, *Ajustes → La app en el móvil → Ins
 | `HOST` | `0.0.0.0` | Interfaz en la que escucha (`127.0.0.1` si solo entra el proxy) |
 | `DATOS` | `./datos` | Carpeta de `jardin.db` |
 | `ADMIN_USUARIO`, `ADMIN_CLAVE` | — | Primer administrador, si no hay usuarios |
-| `REGISTRO_ABIERTO` | `no` | Si cualquiera puede crearse una cuenta desde la pantalla de entrada |
+| `REGISTRO_ABIERTO` | `si` | Si cualquiera puede crearse una cuenta desde la pantalla de entrada |
+| `LIMITE_PLANTAS_GRATIS` | `10` | Plantas en el plano sin pagar |
+| `URL_PUBLICA` | — | Dirección pública, para volver desde el pago |
+| `STRIPE_CLAVE_SECRETA` | — | Clave secreta de Stripe; sin ella, sin pagos |
+| `STRIPE_PRECIO` | — | Precio mensual (`price_…`) |
+| `STRIPE_SECRETO_AVISOS` | — | Secreto del webhook (`whsec_…`) |
+| `STRIPE_IMPUESTOS` | `no` | Calcular el IVA con Stripe Tax |
+| `PRECIO_TEXTO` | — | Texto del precio; si no, se pregunta a Stripe |
 | `CONFIAR_PROXY` | `no` | Leer `X-Forwarded-*` (IP real, https) de un proxy |
 | `COOKIE_SEGURA` | `auto` | Cookie solo por https: `auto`, `si` o `no` |
 | `SEMILLAS` | `./semillas` | Datos iniciales del catálogo y del jardín |
@@ -146,11 +180,12 @@ Se edita en el plano, o como JSON en *Ajustes → Editar los datos del plano*:
 
 - `servidor/`: Node sin dependencias (`node:http`, `node:sqlite`, `node:crypto`).
   - Contraseñas con scrypt; sesiones con cookie `HttpOnly` y `SameSite=Lax` de 60 días, guardadas como hash.
-  - Límite de intentos de entrada (10 fallos en 15 minutos por IP o usuario).
+  - Límite de intentos de entrada (10 fallos en 15 minutos por IP o usuario) y de altas nuevas por IP.
+  - Pagos con Stripe Checkout y el portal de clientes de Stripe, llamando a su API con `fetch`. Los avisos del webhook se comprueban con su firma HMAC y no se aplican dos veces.
   - Las peticiones que cambian datos tienen que ser JSON y venir del mismo origen.
   - Control de versiones en fichas, notas y jardín: si algo cambió desde otro sitio mientras editabas, la web pregunta antes de sobrescribir.
   - Cabeceras de seguridad (CSP sin scripts en línea, `nosniff`, sin iframes).
 - `publico/`: la web, HTML, CSS y módulos ES sin paso de compilación. `sw.js` es el service worker (sin conexión e instalación).
 - `semillas/`: datos iniciales.
-- `pruebas/`: pruebas de la API, con `npm test`.
+- `pruebas/`: pruebas de la API y de la suscripción (con un Stripe simulado), con `npm test`.
 - Las fuentes (Literata y Atkinson Hyperlegible Next, licencia OFL) van incluidas en `publico/assets/fuentes/`.
