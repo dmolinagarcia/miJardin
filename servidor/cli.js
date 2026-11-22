@@ -6,12 +6,13 @@
 //   node servidor/cli.js importar-fichas <carpeta>     (crea o actualiza fichas del catálogo desde .md)
 //   node servidor/cli.js exportar-fichas <carpeta>     (escribe el catálogo como .md)
 //   node servidor/cli.js importar-jardin <usuario> <archivo.json>
+//   node servidor/cli.js copia [archivo.db]                 (copia de la base de datos, en caliente)
 //
 // La contraseña se pide por la terminal, o se lee de la variable CLAVE.
 
 import { createInterface } from 'node:readline/promises';
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { leerConfig, abrirBase, leerFichasDeCarpeta } from './arranque.js';
 import { crearUsuario, guardarFichaBase } from './api.js';
 import { cifrarClave, validarClave, cerrarSesionesDe } from './auth.js';
@@ -91,6 +92,15 @@ const tareas = {
     console.log(`${filas.length} fichas escritas en ${carpeta}.`);
   },
 
+  copia() {
+    const fecha = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const destino = args[0] || join(cfg.datos, 'copias', `jardin-${fecha}.db`);
+    if (existsSync(destino)) throw new Error(`Ya existe ${destino}.`);
+    mkdirSync(dirname(destino), { recursive: true });
+    db.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
+    console.log(`Copia hecha en ${destino}`);
+  },
+
   'importar-jardin'() {
     const [usuario, archivo] = args;
     if (!usuario || !archivo) throw new Error('Uso: importar-jardin <usuario> <archivo.json>');
@@ -106,7 +116,7 @@ const tareas = {
 
 try {
   if (!tareas[orden]) {
-    console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').filter((l) => l.startsWith('//')).slice(0, 10).join('\n').replace(/^\/\/ ?/gm, ''));
+    console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').filter((l) => l.startsWith('//')).slice(0, 11).join('\n').replace(/^\/\/ ?/gm, ''));
     process.exitCode = orden ? 1 : 0;
   } else {
     await tareas[orden]();

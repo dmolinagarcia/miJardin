@@ -46,10 +46,11 @@ Después puedes quitar `ADMIN_USUARIO` y `ADMIN_CLAVE` del `.env`: solo se usan 
 
 ```sh
 cp .env.ejemplo .env
+mkdir -p datos && sudo chown -R 1000:1000 datos
 docker compose up -d --build
 ```
 
-La base de datos queda en `./datos/jardin.db`.
+La base de datos queda en `./datos/jardin.db`. El puerto solo escucha en `127.0.0.1`: se entra a través de un proxy con https. La guía paso a paso para un devbox con Caddy está en [`despliegue/GUIA-DEVBOX.md`](despliegue/GUIA-DEVBOX.md).
 
 ### Con systemd
 
@@ -130,8 +131,11 @@ Con Docker: `docker compose exec jardin node servidor/cli.js usuarios`.
 Todo está en `datos/jardin.db`. Para copiarla en caliente:
 
 ```sh
-sqlite3 datos/jardin.db ".backup 'copia-$(date +%F).db'"
+npm run cli -- copia                                          # sin Docker
+docker compose exec jardin node servidor/cli.js copia         # con Docker
 ```
+
+La copia queda en `datos/copias/`.
 
 Cada usuario puede además descargar su jardín y sus notas en *Ajustes → Descargar una copia*.
 
