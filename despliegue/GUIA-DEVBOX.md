@@ -1,6 +1,6 @@
 # Despliegue del jardín en la devbox
 
-Web: **https://mijardin.devbox.org.es**. Mismo montaje que la escape room: clon de solo lectura, contenedor sin puertos publicados detrás de `devenv-caddy`, y cron que publica lo que llega a `main`.
+Web: **https://mijardin.devbox.org.es**. Mismo montaje que la escape room: clon que no se toca a mano, contenedor sin puertos publicados detrás de `devenv-caddy`, y cron que publica lo que llega a `main`.
 
 ## Resumen
 
@@ -13,7 +13,7 @@ desarrollo ──git push──► GitHub (main) ──cron cada 10 min──►
 | Servidor | `devbox`, usuario `ubuntu` (en el grupo `docker`) |
 | Clon del repo (solo para desplegar) | `/srv/mijardin` |
 | Carpeta de despliegue | `/srv/mijardin/despliegue` |
-| Repositorio | `dmolinagarcia/miJardin`, rama `main` (`JARDIN_RAMA` en `.env`), por deploy key de solo lectura (`~/.ssh/mijardin_deploy`, alias SSH `github-mijardin`) |
+| Repositorio | `dmolinagarcia/miJardin`, rama `main` (`JARDIN_RAMA` en `.env`), con la cuenta de GitHub ya autenticada del usuario `ubuntu` |
 | Contenedor | `mijardin` (imagen `mijardin:latest`, Node 22 alpine, puerto 8080 interno, sin dependencias) |
 | Puertos publicados | ninguno: solo Caddy llega al contenedor, por la red Docker compartida |
 | Configuración | `despliegue/.env` (no está en git; plantilla en `.env.ejemplo`). La clave es `CADDY_NETWORK`, la red Docker de `devenv-caddy` |
@@ -26,29 +26,26 @@ desarrollo ──git push──► GitHub (main) ──cron cada 10 min──►
 
 ## Puesta en marcha (una vez)
 
-### 1. Deploy key y clon
+### 1. Clon
+
+El usuario `ubuntu` ya está autenticado en GitHub, así que se clona directamente:
 
 ```bash
-ssh-keygen -t ed25519 -N '' -C 'devbox mijardin' -f ~/.ssh/mijardin_deploy
-cat >> ~/.ssh/config <<'EOF'
-
-Host github-mijardin
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/mijardin_deploy
-  IdentitiesOnly yes
-EOF
-cat ~/.ssh/mijardin_deploy.pub
-```
-
-En GitHub, en *miJardin → Settings → Deploy keys → Add deploy key*, pega la clave pública **sin** marcar *Allow write access*.
-
-```bash
-ssh -T github-mijardin          # «Hi dmolinagarcia/miJardin! You've successfully authenticated…»
 sudo mkdir -p /srv/mijardin && sudo chown ubuntu: /srv/mijardin
-git clone github-mijardin:dmolinagarcia/miJardin.git /srv/mijardin
-git -C /srv/mijardin ls-remote origin main   # tiene que responder
+git clone git@github.com:dmolinagarcia/miJardin.git /srv/mijardin    # o https://github.com/… si usas gh / token
+git -C /srv/mijardin ls-remote origin main                           # tiene que responder
 ```
+
+El cron no tiene el agente SSH de tu sesión. Comprueba que `git fetch` funciona también sin él, con un entorno vacío como el del cron:
+
+```bash
+env -i HOME="$HOME" PATH=/usr/bin:/bin git -C /srv/mijardin fetch --dry-run && echo "el cron podrá actualizar"
+```
+
+Si falla (por ejemplo, porque tu clave SSH tiene frase de paso o solo vale con el agente reenviado al conectar), tienes dos salidas:
+
+- Clonar por https con `gh auth login` y `gh auth setup-git`: el token queda guardado y el cron lo usa.
+- Una deploy key de solo lectura sin frase de paso, como en la escape room.
 
 ### 2. Configuración
 
@@ -159,7 +156,7 @@ docker compose start mijardin
 | Entras y vuelve a pedir la contraseña | Estás entrando por http, o Caddy no manda `X-Forwarded-Proto`. Entra por https. |
 | «Petición rechazada: no viene de esta web» al guardar | El sitio de Caddy cambia la cabecera Host. Usa un `reverse_proxy` normal, como el del ejemplo. |
 | Al pagar no vuelve a la web | `URL_PUBLICA` mal puesta en `.env`. |
-| El cron no publica | `tail ~/mijardin-actualizar.log`. Puede ser un commit marcado como fallido (`cat datos/.commit-fallido`). Lanza `./actualizar.sh` a mano para ver el error. |
+| El cron no publica | `tail ~/mijardin-actualizar.log`. Si sale `Permission denied (publickey)`, el cron no puede usar tu clave SSH (paso 1). Puede ser un commit marcado como fallido (`cat datos/.commit-fallido`). Lanza `./actualizar.sh` a mano para ver el error. |
 
 ## Pendiente de confirmar en la devbox
 
