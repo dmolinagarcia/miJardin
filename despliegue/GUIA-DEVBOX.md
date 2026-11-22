@@ -1,6 +1,6 @@
 # Despliegue del jardín en la devbox
 
-Web: **https://jardin.tudominio.es** (cambia el dominio en los pasos 3 y 4). Mismo montaje que la escape room: clon de solo lectura, contenedor sin puertos publicados detrás de `devenv-caddy`, y cron que publica lo que llega a `main`.
+Web: **https://mijardin.devbox.org.es**. Mismo montaje que la escape room: clon de solo lectura, contenedor sin puertos publicados detrás de `devenv-caddy`, y cron que publica lo que llega a `main`.
 
 ## Resumen
 
@@ -73,18 +73,20 @@ docker compose logs --tail 20 mijardin   # «Catálogo inicial: 3 fichas…», �
 ### 4. Caddy
 
 ```bash
+ls /srv/dev/caddy/sites/ && cat /srv/dev/caddy/sites/*.caddy   # cómo están los otros sitios
 cp Caddyfile.ejemplo /srv/dev/caddy/sites/mijardin.caddy
-nano /srv/dev/caddy/sites/mijardin.caddy   # el dominio
 docker exec devenv-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 
-El DNS de ese dominio tiene que apuntar a la devbox (registro `A`/`AAAA`, o `CNAME` al nombre de la devbox).
+Antes, comprueba que el nombre ya apunta a la devbox: `dig +short mijardin.devbox.org.es` tiene que dar su IP. Si `*.devbox.org.es` es un comodín, ya está; si no, crea el registro `A`/`AAAA`.
+
+Mira cómo están escritos los otros sitios de `/srv/dev/caddy/sites/`. Si usan algún `import` común (cabeceras, `tls`, registros), añádelo también a `mijardin.caddy` para que quede igual.
 
 ### 5. Primera entrada
 
-1. `https://jardin.tudominio.es` → entra con el administrador → *Ajustes → Cambiar la contraseña*.
+1. `https://mijardin.devbox.org.es` → entra con el administrador → *Ajustes → Cambiar la contraseña*.
 2. Quita `ADMIN_USUARIO` y `ADMIN_CLAVE` de `.env` y aplica: `./actualizar.sh --forzar`.
-3. Comprueba `https://jardin.tudominio.es/version.json`.
+3. Comprueba `https://mijardin.devbox.org.es/version.json`.
 
 ### 6. Tareas programadas
 
@@ -96,7 +98,7 @@ crontab -l | grep mijardin
 ### 7. Stripe (cuando toque)
 
 1. En modo de prueba: producto con precio **recurrente mensual** (`price_…`), clave secreta `sk_test_…`, y guarda la configuración del *Portal de clientes*.
-2. Webhook a `https://jardin.tudominio.es/api/stripe/aviso` con `checkout.session.completed` y `customer.subscription.created/updated/deleted` (`whsec_…`).
+2. Webhook a `https://mijardin.devbox.org.es/api/stripe/aviso` con `checkout.session.completed` y `customer.subscription.created/updated/deleted` (`whsec_…`).
 3. Rellena `STRIPE_CLAVE_SECRETA`, `STRIPE_PRECIO` y `STRIPE_SECRETO_AVISOS` en `.env` y aplica con `./actualizar.sh --forzar`.
 4. Prueba con un usuario nuevo y la tarjeta `4242 4242 4242 4242`.
 
@@ -161,6 +163,6 @@ docker compose start mijardin
 
 ## Pendiente de confirmar en la devbox
 
-- El dominio definitivo y su registro DNS.
+- Que `mijardin.devbox.org.es` resuelve a la devbox (`dig +short mijardin.devbox.org.es`).
 - El valor de `CADDY_NETWORK` (el mismo que la escape room: `grep CADDY_NETWORK /srv/escaperoom2627/deploy/.env`).
 - Que `/srv/mijardin/despliegue/datos/copias` se copie fuera de la máquina, junto con los datos de la escape room.
