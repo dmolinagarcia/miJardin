@@ -1,0 +1,15 @@
+{
+  "name": "mi-jardin",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Web multiusuario del jardín: plano, fichas y calendario por meses. Instalable como app.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning servidor/index.js",
+    "cli": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning servidor/cli.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"pruebas/*.test.js\""
+  }
+}

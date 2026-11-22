@@ -1,0 +1,22 @@
+# Servicio systemd para el jardín, sin Docker.
+#   sudo cp despliegue/jardin.service /etc/systemd/system/
+#   (ajusta User y WorkingDirectory)
+#   sudo systemctl daemon-reload && sudo systemctl enable --now jardin
+[Unit]
+Description=Jardín (web multiusuario)
+After=network.target
+
+[Service]
+Type=simple
+User=jardin
+WorkingDirectory=/opt/miJardin
+EnvironmentFile=-/opt/miJardin/.env
+ExecStart=/usr/bin/node --env-file-if-exists=.env --disable-warning=ExperimentalWarning servidor/index.js
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/miJardin/datos
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

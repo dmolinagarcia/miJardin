@@ -1,23 +1,20 @@
 // vista-plano.js — el plano con las plantas, su leyenda y el modo edición.
 
-import { MESES, esc, enLinea, markdown, slug } from './md.js';
+import { MESES, esc, enLinea, slug } from './md.js';
 import {
   estado,
   listaFichas,
+  listaCatalogo,
   periodosDelMes,
   tareasDelMes,
   colorDe,
   mesActual,
   guardarJardin,
-  jardinATexto,
-  RUTA_JARDIN,
 } from './estado.js';
 import { montarPlano } from './plano.js';
-import { ICONOS, abrirHoja, cerrarHoja, confirmar, aviso } from './ui.js';
+import { ICONOS, abrirHoja, cerrarHoja, confirmar, aviso, guardarConConflicto } from './ui.js';
 import { ponerGuardia, ponerSalida } from './rutas.js';
-import { tareaHTML, chipsPeriodo } from './vista-temporada.js';
-import { hojaSinConexion, guardarConConflicto } from './conexion.js';
-import * as gh from './github.js';
+import { tareaHTML, chipsPeriodo, prosaPeriodo } from './vista-temporada.js';
 
 let edicion = null; // { copia, cambios } mientras se edita
 let zoomGuardado = 1;
@@ -174,7 +171,7 @@ function hojaPlanta(p) {
         f
           ? `<div class="hoja-ahora"><span class="hoja-sub">En ${MESES[mes - 1]}</span>${chipsPeriodo(periodos)}</div>
         ${tareas.length ? `<ul class="tareas">${tareas.map((t) => tareaHTML(t, mes)).join('')}</ul>` : ''}
-        ${periodos.map((x) => `<div class="prosa">${markdown(x.cuerpo)}</div>`).join('')}
+        ${periodos.map((x) => prosaPeriodo(x)).join('')}
         <div class="acciones"><a class="boton" href="#/ficha/${esc(f.id)}" data-cerrar>Ver la ficha completa</a></div>`
           : '<p>Esta planta no tiene ficha. Usa «Editar plano» para elegir de qué tipo es.</p>'
       }`,
@@ -187,7 +184,6 @@ function hojaPlanta(p) {
 function empezarEdicion() {
   edicion = { copia: JSON.parse(JSON.stringify(estado.jardin)), cambios: false };
   vistaPlano(app, null);
-  if (!gh.puedeEscribir()) aviso('Puedes mover y añadir plantas. Para guardar en GitHub necesitas el token de Ajustes.');
 }
 
 function marcarCambio() {
@@ -216,21 +212,20 @@ async function salirEdicion() {
 
 async function guardarEdicion(boton) {
   if (!edicion) return;
-  if (!gh.puedeEscribir()) {
-    hojaSinConexion({ ruta: RUTA_JARDIN, texto: jardinATexto(edicion.copia), tipo: 'application/json' });
-    return;
-  }
   boton.disabled = true;
   boton.textContent = 'Guardando…';
   try {
-    const hecho = await guardarConConflicto((op) => guardarJardin(edicion.copia, 'Actualiza el plano del jardín', op), { que: 'El plano' });
+    const hecho = await guardarConConflicto((op) => guardarJardin(edicion.copia, op), {
+      que: 'El plano',
+      detalle: 'Lo has cambiado desde otro dispositivo.',
+    });
     if (!hecho) {
       boton.disabled = false;
       boton.textContent = 'Guardar cambios';
       return;
     }
     edicion = null;
-    aviso('Plano guardado en GitHub.');
+    aviso('Plano guardado.');
     vistaPlano(app, null);
   } catch (e) {
     aviso(e.message, 'error');
@@ -263,9 +258,9 @@ function idUnico(etiqueta, plantas) {
 }
 
 function anadirPlanta() {
-  const fichas = listaFichas();
+  const fichas = listaFichas().length ? listaFichas() : listaCatalogo();
   if (!fichas.length) {
-    aviso('Primero crea la ficha de ese tipo de planta, en Fichas.', 'error');
+    aviso('El catálogo de fichas está vacío. Hace falta que la administración cree alguna.', 'error');
     return;
   }
   const [x, y] = plano.centroVisible();
@@ -275,16 +270,20 @@ function anadirPlanta() {
 
 function hojaEditar(p, nueva) {
   const instancia = plano;
-  const fichas = listaFichas();
+  const mias = listaFichas();
+  const otras = listaCatalogo().filter((f) => !mias.includes(f));
+  const opcion = (f) => `<option value="${esc(f.id)}"${f.id === p.ficha ? ' selected' : ''}>${esc(f.nombre)}</option>`;
   const sinFicha = p.ficha && !estado.fichas.has(p.ficha);
   abrirHoja({
     titulo: nueva ? 'Añadir planta' : `Editar ${esc(p.etiqueta)}`,
     contenido: `<form class="formulario" id="form-planta" novalidate>
       <div class="campo">
         <label for="pl-ficha">Tipo de planta</label>
-        <select id="pl-ficha">${fichas
-          .map((f) => `<option value="${esc(f.id)}"${f.id === p.ficha ? ' selected' : ''}>${esc(f.nombre)}</option>`)
-          .join('')}${sinFicha ? `<option value="${esc(p.ficha)}" selected>${esc(p.ficha)} (sin ficha)</option>` : ''}</select>
+        <select id="pl-ficha">${
+          otras.length && mias.length
+            ? `<optgroup label="En tu jardín">${mias.map(opcion).join('')}</optgroup><optgroup label="Resto del catálogo">${otras.map(opcion).join('')}</optgroup>`
+            : [...mias, ...otras].map(opcion).join('')
+        }${sinFicha ? `<option value="${esc(p.ficha)}" selected>${esc(p.ficha)} (sin ficha)</option>` : ''}</select>
       </div>
       <div class="campo">
         <label for="pl-etiqueta">Etiqueta en el plano</label>

@@ -14,13 +14,23 @@ export function tareaHTML(t, mes) {
   const marca = empieza ? 'Empieza' : acaba ? 'Último mes' : '';
   return `<li class="tarea cat-${t.categoria}">
     <span class="punto" title="${esc(CATEGORIAS[t.categoria])}" aria-hidden="true"></span>
-    <span class="tarea-texto">${enLinea(t.texto)}</span>
+    <span class="tarea-texto">${enLinea(t.texto)}${t.propia ? ' <span class="marca-tuya">tuya</span>' : ''}</span>
     <span class="tarea-rango">${esc(t.cuando)}${marca ? ` <span class="tarea-marca">${marca}</span>` : ''}</span>
   </li>`;
 }
 
 export function chipsPeriodo(periodos) {
-  return periodos.map((p) => `<span class="chip-est est-${p.estacion || 'otra'}">${esc(p.titulo)}</span>`).join('');
+  return periodos
+    .filter((p) => !p.propia)
+    .map((p) => `<span class="chip-est est-${p.estacion || 'otra'}">${esc(p.titulo)}</span>`)
+    .join('');
+}
+
+export function prosaPeriodo(p) {
+  if (!p.cuerpo) return '';
+  return p.propia
+    ? `<div class="prosa nota-propia"><p class="marca-nota">${ICONOS.nota}Tu nota · ${esc(p.titulo)}</p>${markdown(p.cuerpo)}</div>`
+    : `<div class="prosa">${markdown(p.cuerpo)}</div>`;
 }
 
 function tarjetaMes(f, mes) {
@@ -37,7 +47,7 @@ function tarjetaMes(f, mes) {
     ${tareas.length ? `<ul class="tareas" aria-label="Tareas de ${MESES[mes - 1]}">${tareas.map((t) => tareaHTML(t, mes)).join('')}</ul>` : ''}
     ${
       periodos.length
-        ? periodos.map((p) => `<div class="prosa">${markdown(p.cuerpo)}</div>`).join('')
+        ? periodos.map((p) => prosaPeriodo(p)).join('')
         : `<p class="vacio">La ficha no tiene ninguna temporada que incluya ${MESES[mes - 1]}.</p>`
     }
   </article>`;
@@ -82,7 +92,8 @@ export function vistaTemporada(app, mesRuta) {
       ${leyendaCategorias(fichas)}
       ${lineaTemporal({ fichas, mes, tareas: true })}
     </details>`
-        : `<div class="vacio-grande"><p>Todavía no hay fichas de plantas.</p><a class="boton" href="#/nueva">Crear la primera ficha</a></div>`
+        : `<div class="vacio-grande"><p>Tu jardín todavía no tiene plantas. Elige en el catálogo las que tienes, o colócalas en el plano.</p>
+          <div class="acciones"><a class="boton" href="#/fichas">Elegir fichas del catálogo</a><a class="boton secundario" href="#/plano">Ir al plano</a></div></div>`
     }
   </section>`;
 

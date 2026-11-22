@@ -31,7 +31,7 @@ function claseCortes(t) {
 }
 
 function filaFases(ficha, enlazar, etiqueta) {
-  const fases = ficha.secciones.filter((s) => s.tipo === 'periodo');
+  const fases = ficha.secciones.filter((s) => s.tipo === 'periodo' && !s.propia);
   const segmentos = fases
     .flatMap((s) =>
       tramos(s.meses).map((t) => {
@@ -57,7 +57,7 @@ function filasTareas(ficha) {
   return calendarioOrdenado(ficha)
     .map(
       (t) => `<div class="linea-fila linea-tarea">
-      <div class="linea-etq"><span class="tarea-texto">${enLinea(t.texto)}</span> <span class="tarea-rango">${esc(t.cuando)}</span></div>
+      <div class="linea-etq"><span class="tarea-texto">${enLinea(t.texto)}</span>${t.propia ? ' <span class="marca-tuya">tuya</span>' : ''} <span class="tarea-rango">${esc(t.cuando)}</span></div>
       <div class="linea-barras">${tramos(t.meses)
         .map((tr) => `<span class="barra cat-${t.categoria}${claseCortes(tr)}" style="grid-column:${tr.desde} / ${tr.hasta + 1}" title="${esc(CATEGORIAS[t.categoria])}"></span>`)
         .join('')}</div>

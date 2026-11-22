@@ -1,0 +1,13 @@
+# docker compose up -d
+services:
+  jardin:
+    build: .
+    container_name: jardin
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./datos:/datos

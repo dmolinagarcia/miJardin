@@ -1,8 +1,9 @@
 {
-  "name": "Jardín de Colmenar",
+  "name": "Mi jardín",
   "short_name": "Jardín",
   "description": "Plano, fichas y calendario de las plantas del jardín.",
   "lang": "es",
+  "id": "./",
   "start_url": "./#/temporada",
   "scope": "./",
   "display": "standalone",

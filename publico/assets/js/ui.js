@@ -20,7 +20,11 @@ export const ICONOS = {
   menos: svg('<path d="M5 12h14"/>'),
   girar: svg('<rect x="3.5" y="9.5" width="11" height="11" rx="1.5"/><path d="M9.5 5h4.5a5 5 0 0 1 5 5v4"/><path d="M16.5 11.5 19 14l2.5-2.5"/>'),
   lapiz: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
-  github: svg('<path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.4a3 3 0 0 0-.8-2.3c2.7-.3 5.6-1.4 5.6-6a4.7 4.7 0 0 0-1.3-3.2 4.4 4.4 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6 0C6.6 2.6 5.6 2.9 5.6 2.9a4.4 4.4 0 0 0-.1 3.2A4.7 4.7 0 0 0 4.2 9.3c0 4.6 2.9 5.7 5.6 6a3 3 0 0 0-.8 2.3V21"/>'),
+  admin: svg('<path d="M12 3.5 19 6v5.5c0 4.3-3 7.7-7 9-4-1.3-7-4.7-7-9V6z"/><path d="m9 12 2 2 4-4"/>'),
+  nota: svg('<path d="M5 4.5h14v10l-5 5H5z"/><path d="M14 19.5v-5h5M8.5 9h7M8.5 12.5h4"/>'),
+  salir: svg('<path d="M14 4.5H6v15h8"/><path d="M10.5 12H20M17 8.5l3.5 3.5-3.5 3.5"/>'),
+  descargar: svg('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>'),
+  instalar: svg('<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M12 7v7M9.5 11.5 12 14l2.5-2.5M10.5 18.5h3"/>'),
   hoja: svg('<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4M9 12h6M9 16h6"/>'),
   ubicacion: svg('<path d="M12 21s-6.5-6.2-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>'),
 };
@@ -168,4 +172,26 @@ export function leerLocal(clave, defecto = null) {
 
 export function fechaCorta(ms) {
   return new Date(ms).toLocaleString('es-ES', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+}
+
+// fn recibe { forzar } y guarda. Si los datos cambiaron en el servidor, pregunta antes de sobrescribir.
+export async function guardarConConflicto(fn, { que = 'El archivo', detalle = 'Alguien lo ha modificado desde que lo abriste.' } = {}) {
+  try {
+    return await fn({});
+  } catch (e) {
+    if (!e.conflicto) throw e;
+    const si = await confirmar({
+      titulo: `${que} ha cambiado`,
+      texto: `${detalle} Si guardas, tu versión sustituirá a la otra.`,
+      aceptar: 'Guardar mi versión',
+      cancelar: 'No guardar',
+    });
+    if (!si) return null;
+    return fn({ forzar: true });
+  }
+}
+
+export function fechaLarga(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 }
